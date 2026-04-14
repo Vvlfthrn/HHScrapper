@@ -1,0 +1,58 @@
+
+services:
+
+  admin:
+    extends:
+      file: django_app.yml
+      service: web
+    ports:
+      - '5943:5943'
+    command: /bin/sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:5943"
+    container_name: admin
+    restart: always
+    logging:
+      options:
+        max-size: '50m'
+
+  scrapper:
+    extends:
+      file: selenium.yaml
+      service: scrap
+    entrypoint: python manage.py run_scrapper
+    container_name: scrapper
+    logging:
+      options:
+        max-size: '50m'
+    tty: true
+    stdin_open: true
+    depends_on:
+      - admin
+    restart: always
+
+  llm:
+    extends:
+      file: django_app.yml
+      service: web
+    entrypoint: python manage.py run_llm
+    container_name: llm
+    logging:
+      options:
+        max-size: '50m'
+    depends_on:
+      - admin
+    restart: always
+
+  telebot:
+    extends:
+      file: django_app.yml
+      service: web
+    entrypoint: python manage.py run_telebot
+    container_name: telebot
+    logging:
+      options:
+        max-size: '50m'
+    tty: true
+    stdin_open: true
+    depends_on:
+      - admin
+    restart: always

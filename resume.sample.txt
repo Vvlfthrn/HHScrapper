@@ -1,0 +1,69 @@
+RESUME = """
+РЕЗЮМЕ:
+    Претендуем на должность: Python-разработчик | Программист Python | Python backend developer | Python бэкенд разработчик
+
+    Тип занятости: полная занятость, частичная занятость, проектная работа/разовое задание
+
+    Формат работы: удалённо
+
+    Опыт работы — 7 лет
+
+    Предыдущие места работы:
+
+        Должность: программист Python
+
+        Обязанности:
+
+        Создание парсеров новостных порталов и телеграм каналов(Selenium, Scrapy, Telethon),
+        аггрегация полученных данных(ElasticSearch) и предварительная обработка с помощью LLM(LangChain, Ollama).
+        Стек: FastAPI, Pydantic, SQLAlchemy, Flet
+
+        Должность: Python-разработчик
+
+        Обязанности:
+
+        Разработка АС.
+
+        Интеграции АС с внешними ведомственными сервисами(REST, AMQP). Коммуникации и реализации API для взаимодействия с коллегами из внешних ведомств.
+
+        Создание аналитической отчётности для пользователей АС (Celery, Django ORM, PostgreSQL, Openpyxl).
+
+        Настройка сборок GitLab в рамках CI/CD для команд разработки и тестирования.
+
+        Code review, release management, менторство младших коллег.
+
+        Стек: Django, Postgres, DRF, Celery, RabbitMQ, ElasticSearch, gitflow, pika, Docker.
+
+        Python-разработчик
+
+        Разработка сервисов и плагинов для автоматизированной системы.
+
+        Code Review коллег.
+
+        Стек: Django, PostgreSql, ExtJS
+
+    Образование - Высшее
+
+    Навыки:
+        Python;
+        PostgreSQL;
+        Linux;
+        Docker;
+        Django Framework;
+        Redis;
+        REST;
+        Celery;
+        Elasticsearch;
+        RabbitMQ;
+        Git;
+        Django
+        Rest Framework;
+        FastAPI;
+        SQLAlchemy;
+        Gitlab;
+        Pytest;
+        Swagger;
+        Pydantic;
+        Docker-compose;
+        Telethon
+"""

@@ -1,0 +1,16 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: ./docker/django/Dockerfile
+    env_file: .env
+    volumes:
+      - ./hhscrapper:/hhscrapper
+      - ./manage.py:/manage.py
+      - ./resume.txt:/resume.txt
+      - ./resume.sample.txt:/resume.sample.txt
+      - ./prompt.txt:/prompt.txt
+      - ./prompt.sample.txt:/prompt.sample.txt
+      - ./saved_cookies:/saved_cookies
+      - ./latest_logs:/latest_logs
+      - ./downloaded_files:/downloaded_files
