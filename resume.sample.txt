@@ -1,4 +1,3 @@
-RESUME = """
 РЕЗЮМЕ:
     Претендуем на должность: Python-разработчик | Программист Python | Python backend developer | Python бэкенд разработчик
 
@@ -66,4 +65,3 @@ RESUME = """
         Pydantic;
         Docker-compose;
         Telethon
-"""
