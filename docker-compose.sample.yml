@@ -28,6 +28,14 @@ services:
     depends_on:
       - admin
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
 
   llm:
     extends:
