@@ -29,7 +29,7 @@ DELAY_TIMEOUT = 3
 PAGE_LOAD_TIMEOUT = 30
 CAPTCHA_LOADING_TIMEOUT = 20
 TM0 = 0
-SWITCH_WINDOW_TIMEOUT = 1
+SWITCH_WINDOW_TIMEOUT = 3
 VAC_READ_TIMEOUT = 2
 NEXT_LIST_PAGE_TIMEOUT = 5
 WORKING_HOURS_PERIOD = 20 * 60
@@ -123,69 +123,70 @@ def do_work():
         test=False,
         locale="ru",
         window_size='1920,1080',
-        headless=True
         ) as sb:
-
-        timestamp = datetime.now()
-        url = SEARCH_STR[0]
-        sb.uc_open_with_reconnect(url)
-        sb.wait_for_ready_state_complete(timeout=PAGE_LOAD_TIMEOUT)
         try:
-            sb.load_cookies()
-        except FileNotFoundError:
-             pass
-
-        url = SEARCH_STR[0]
-        sb.uc_open_with_reconnect(url)
-        sb.wait_for_ready_state_complete(timeout=PAGE_LOAD_TIMEOUT)
-
-        if sb.find_elements('a[data-qa="login"]'):
-            sb.open_url("https://hh.ru/account/login?role=applicant")
+            timestamp = datetime.now()
+            url = SEARCH_STR[0]
+            sb.uc_open_with_reconnect(url)
             sb.wait_for_ready_state_complete(timeout=PAGE_LOAD_TIMEOUT)
-            login(sb)
-        for search_query in SEARCH_STR:
-            sb.open_url(search_query)
+            try:
+                sb.load_cookies()
+            except FileNotFoundError:
+                 pass
+
+            url = SEARCH_STR[0]
+            sb.uc_open_with_reconnect(url)
             sb.wait_for_ready_state_complete(timeout=PAGE_LOAD_TIMEOUT)
-            logger.info(f'Opened {search_query}')
-            while True:
-                links = sb.find_elements(VACANCIES_LIST_SELECTOR)
-                vac_new_links = set()
-                for x in links:
-                    href = x.get_attribute('href')
-                    found = VAC_ID_FINDER.findall(href)
-                    if found and found[0] and Vacancy.objects.filter(hh_id=int(found[0])).exists():
-                        pass
-                    else:
-                        vac_new_links.add(href)
-                logger.info(f'New links {len(vac_new_links)}')
-                for url in vac_new_links:
-                    logger.info(f'Clicking {url}')
-                    sb.click(VACANCIES_LIST_SELECTOR + f'[href="{url}"]')
-                    sb.switch_to_window(1)
-                    time.sleep(SWITCH_WINDOW_TIMEOUT)
-                    if sb.get_current_url().startswith('https://hh.ru/account/captcha'):
-                        solve_captha(sb)
-                    sb.wait_for_ready_state_complete(timeout=PAGE_LOAD_TIMEOUT)
-                    vac_id = VAC_ID_FINDER.findall(sb.get_current_url())
-                    if vac_id and vac_id[0] and not Vacancy.objects.filter(hh_id=int(vac_id[0])).exists():
-                        logger.info('Parsing page...')
-                        parse(sb, timestamp=timestamp, vac_id=vac_id[0])
-                        sb.scroll_to_bottom()
-                        time.sleep(VAC_READ_TIMEOUT)
-                    sb.driver.close()
-                    sb.switch_to_window(0)
-                    time.sleep(SWITCH_WINDOW_TIMEOUT)
-                next_page = sb.find_elements(NEXT_PAGE_SELECTOR)
-                if not next_page:
-                    logger.info(f'That was last page. Exiting...')
-                    break
-                sb.click(NEXT_PAGE_SELECTOR, delay=DELAY_TIMEOUT)
-                time.sleep(NEXT_LIST_PAGE_TIMEOUT)
+
+            if sb.find_elements('a[data-qa="login"]'):
+                sb.open_url("https://hh.ru/account/login?role=applicant")
                 sb.wait_for_ready_state_complete(timeout=PAGE_LOAD_TIMEOUT)
-                logger.info(f'Loaded next page')
-        sb.save_cookies()
-        sb.driver.quit()
-
+                login(sb)
+            for search_query in SEARCH_STR:
+                sb.open_url(search_query)
+                sb.wait_for_ready_state_complete(timeout=PAGE_LOAD_TIMEOUT)
+                logger.info(f'Opened {search_query}')
+                while True:
+                    links = sb.find_elements(VACANCIES_LIST_SELECTOR)
+                    vac_new_links = set()
+                    for x in links:
+                        href = x.get_attribute('href')
+                        found = VAC_ID_FINDER.findall(href)
+                        if found and found[0] and Vacancy.objects.filter(hh_id=int(found[0])).exists():
+                            pass
+                        else:
+                            vac_new_links.add(href)
+                    logger.info(f'New links {len(vac_new_links)}')
+                    for url in vac_new_links:
+                        logger.info(f'Clicking {url}')
+                        sb.click(VACANCIES_LIST_SELECTOR + f'[href="{url}"]')
+                        sb.switch_to_window(1, timeout=SWITCH_WINDOW_TIMEOUT)
+                        # time.sleep(SWITCH_WINDOW_TIMEOUT)
+                        if sb.get_current_url().startswith('https://hh.ru/account/captcha'):
+                            solve_captha(sb)
+                        sb.wait_for_ready_state_complete(timeout=PAGE_LOAD_TIMEOUT)
+                        vac_id = VAC_ID_FINDER.findall(sb.get_current_url())
+                        logger.info(f'Found {vac_id}')
+                        if vac_id and vac_id[0] and not Vacancy.objects.filter(hh_id=int(vac_id[0])).exists():
+                            logger.info('Parsing page...')
+                            parse(sb, timestamp=timestamp, vac_id=vac_id[0])
+                            sb.scroll_to_bottom()
+                            time.sleep(VAC_READ_TIMEOUT)
+                        sb.driver.close()
+                        sb.switch_to_window(0, timeout=SWITCH_WINDOW_TIMEOUT)
+                    next_page = sb.find_elements(NEXT_PAGE_SELECTOR)
+                    if not next_page:
+                        logger.info(f'That was last page. Exiting...')
+                        break
+                    sb.click(NEXT_PAGE_SELECTOR, delay=DELAY_TIMEOUT)
+                    time.sleep(NEXT_LIST_PAGE_TIMEOUT)
+                    sb.wait_for_ready_state_complete(timeout=PAGE_LOAD_TIMEOUT)
+                    logger.info(f'Loaded next page')
+            sb.save_cookies()
+            sb.driver.quit()
+        except NoSuchElementException as e:
+            sb.save_screenshot('./downloaded_files/screenshot.png')
+            raise e
 
 class Command(BaseCommand):
     help = "Run scrapper"
