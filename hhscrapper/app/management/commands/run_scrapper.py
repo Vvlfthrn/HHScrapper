@@ -80,23 +80,32 @@ def login(sb:SB):
     sb.save_cookies()
     return True
 
-def get_element_text(sb: SB, selector:str, separator: str = ', ', only_first: bool = False):
+def get_element_text(sb: SB, selector:str | list[str], separator: str = ', ', only_first: bool = False):
     result = ''
-    try:
-        if only_first:
-            result = sb.find_element(selector).text
-        else:
-            result = separator.join(x.text for x in sb.find_elements(selector))
-    except NoSuchElementException:
-        pass
+    if isinstance(selector, str):
+        selector = [selector]
+    for item in selector:
+        try:
+            if only_first:
+                result += sb.find_element(item).text
+            else:
+                result += separator.join(x.text for x in sb.find_elements(item))
+        except NoSuchElementException:
+            pass
     return result
 
 def parse(sb: SB, timestamp:datetime = None, vac_id :str = None):
     v = Vacancy(
         hh_id=int(vac_id),
         url=sb.get_current_url(),
-        title= get_element_text(sb, 'div[data-qa="vacancy-title"]', separator=''),
-        salary=get_element_text(sb, 'div[class^="compensation-row"]'),
+            title= get_element_text(sb, [
+                'div[data-qa="vacancy-title"]',
+                'div[class="vacancy-title"] h1[data-qa="vacancy-title"] span'
+            ], separator=''),
+        salary=get_element_text(sb, [
+            'div[class^="compensation-row"]',
+            'div[data-qa="vacancy-salary"] span'
+        ]),
         compensation=get_element_text(sb, 'p[data-qa="compensation-frequency-text"]'),
         work_experience=get_element_text(sb, 'p[data-qa="work-experience-text"]'),
         common_employment=get_element_text(sb, 'div[data-qa="common-employment-text"]'),
@@ -123,6 +132,7 @@ def do_work():
         test=False,
         locale="ru",
         window_size='1920,1080',
+        maximize=True,
         ) as sb:
         try:
             timestamp = datetime.now()
