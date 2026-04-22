@@ -95,8 +95,8 @@ def parse(sb: SB, timestamp:datetime = None, vac_id :str = None):
     v = Vacancy(
         hh_id=int(vac_id),
         url=sb.get_current_url(),
-        title= get_element_text(sb, 'div[class="vacancy-title"] h1[data-qa="vacancy-title"] span', separator=''),
-        salary=get_element_text(sb, 'div[data-qa="vacancy-salary"] span', only_first=True),
+        title= get_element_text(sb, 'div[data-qa="vacancy-title"]', separator=''),
+        salary=get_element_text(sb, 'div[class^="compensation-row"]'),
         compensation=get_element_text(sb, 'p[data-qa="compensation-frequency-text"]'),
         work_experience=get_element_text(sb, 'p[data-qa="work-experience-text"]'),
         common_employment=get_element_text(sb, 'div[data-qa="common-employment-text"]'),
