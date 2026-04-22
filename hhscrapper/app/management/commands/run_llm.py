@@ -37,7 +37,7 @@ def check_consensus():
         cor_count=Count('llm_results')):
         vac.koef = vac.cor_count / float(llm_tasks_count)
         vac.consensus = vac.cor_count == llm_tasks_count
-        vac.save()
+        vac.save(update_fields=['koef', 'consensus'])
 
 
 def llm_do_work():
