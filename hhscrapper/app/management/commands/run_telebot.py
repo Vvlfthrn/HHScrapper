@@ -19,23 +19,24 @@ logging.basicConfig(level=logging.INFO)
 async def send_messages(vacancy_decisions:Iterable[VacancyPromptDecision]):
     bot = TelegramClient('./hhscrapper/sender_bot.db', API_ID, API_HASH)
     client = await bot.start(bot_token=BOT_TOKEN)
-    vacancy_decisions = list(VacancyPromptDecision.objects.filter(
-        id__in=vacancy_decisions, koef__gte=0.4).select_related('vacancy'))
+    vacancy_decisions = [x async for x in VacancyPromptDecision.objects.filter(
+        id__in=vacancy_decisions, koef__gte=0.4).select_related('vacancy')]
     offset = 8
     step = 0
     while vacs:=vacancy_decisions[offset * step:offset * (step + 1)]:
         message = ''
         for vd in vacs:
-            message += f'{vd.vacancy.title} ({vd.vacancy.koef})\n'
+            message += f'{vd.vacancy.title} ({vd.koef})\n'
             message += f'https://hh.ru/vacancy/{vd.vacancy.hh_id}\n'
             message += '===========\n\n'
         logger.info(f'Sending message to {USER_ID} vacs: {[x.id for x in vacs]}')
         await client.send_message(USER_ID, message=message)
-        for vd in vacancy_decisions:
+        for vd in vacs:
             vd.notified = True
             await vd.asave(update_fields=['notified'])
         logger.info(f'Sleeping {SLEEP_TIME} seconds')
         await asyncio.sleep(SLEEP_TIME)
+        step += 1
     await bot.disconnect()
     return True
 

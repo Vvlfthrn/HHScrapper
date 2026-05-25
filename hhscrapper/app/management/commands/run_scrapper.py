@@ -124,7 +124,7 @@ def parse(sb: SB, timestamp:datetime = None, vac_id :str = None, search_query: S
             for x in sb.find_elements('ul[class^="vacancy-skill-list"] li[data-qa="skills-element"]'):
                 s, _ = Skill.objects.get_or_create(title=x.text.strip())
                 v.skills.add(s)
-        for link in search_query.search_links.select_releated('prompt'):
+        for link in search_query.search_links.select_related('prompt'):
             obj, created = VacancyPromptDecision.objects.get_or_create(vacancy=v, prompt=link.prompt)
             if created:
                 if link.prompt.vacancy_with_stop_words(vacancy=v):
