@@ -3,32 +3,37 @@ import time
 
 import asyncio
 import logging
+from typing import Iterable
 
 from telethon import TelegramClient
 from django.core.management import BaseCommand
 from django.db import transaction
 
-from hhscrapper.app.models import Vacancy
+from hhscrapper.app.models import VacancyPromptDecision, DecisionState
 from hhscrapper.app.telebot import API_ID, API_HASH, BOT_TOKEN, USER_ID, SLEEP_TIME
 
 logger = logging.getLogger('asyncio')
 logging.basicConfig(level=logging.INFO)
 
 
-async def send_messages(vacancies:list):
-    bot = TelegramClient('sender_bot.db', API_ID, API_HASH)
+async def send_messages(vacancy_decisions:Iterable[VacancyPromptDecision]):
+    bot = TelegramClient('./hhscrapper/sender_bot.db', API_ID, API_HASH)
     client = await bot.start(bot_token=BOT_TOKEN)
-    vacs = copy.copy(vacancies)
-    while vacs:
-        to_send = vacs[:8]
-        vacs = vacs[8:]
+    vacancy_decisions = list(VacancyPromptDecision.objects.filter(
+        id__in=vacancy_decisions, koef__gte=0.4).select_related('vacancy'))
+    offset = 8
+    step = 0
+    while vacs:=vacancy_decisions[offset * step:offset * (step + 1)]:
         message = ''
-        for vac in to_send:
-            message += f'{vac.title} ({vac.koef})\n'
-            message += f'https://hh.ru/vacancy/{vac.hh_id}\n'
+        for vd in vacs:
+            message += f'{vd.vacancy.title} ({vd.vacancy.koef})\n'
+            message += f'https://hh.ru/vacancy/{vd.vacancy.hh_id}\n'
             message += '===========\n\n'
-        logger.info(f'Sending message to {USER_ID} vacs: {[x.id for x in to_send]}')
+        logger.info(f'Sending message to {USER_ID} vacs: {[x.id for x in vacs]}')
         await client.send_message(USER_ID, message=message)
+        for vd in vacancy_decisions:
+            vd.notified = True
+            await vd.asave(update_fields=['notified'])
         logger.info(f'Sleeping {SLEEP_TIME} seconds')
         await asyncio.sleep(SLEEP_TIME)
     await bot.disconnect()
@@ -36,11 +41,11 @@ async def send_messages(vacancies:list):
 
 
 def bot_do_work():
-    query = Vacancy.objects.filter(notified=False, koef__gte=0.4)
+    query = VacancyPromptDecision.objects.filter(state=DecisionState.CONSENSUS_CHECKED)
     if query.exists():
-        vacancies = [x for x in query.all()]
-        if asyncio.run(send_messages(vacancies)):
-            Vacancy.objects.filter(id__in=[x.id for x in vacancies]).update(notified=True)
+        vacancy_decisions = query.values_list('id', flat=True)
+        if asyncio.run(send_messages(vacancy_decisions)):
+            VacancyPromptDecision.objects.filter(id__in=vacancy_decisions).update(state=DecisionState.DONE)
 
 
 class Command(BaseCommand):

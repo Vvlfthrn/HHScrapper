@@ -16,11 +16,11 @@ logging.basicConfig(level=logging.INFO)
 
 async def send_captcha():
     result = ''
-    bot = TelegramClient('bot.db', API_ID, API_HASH)
+    bot = TelegramClient('./hhscrapper/bot.db', API_ID, API_HASH)
     client = await bot.start(bot_token=BOT_TOKEN)
     async with client.conversation(USER_ID, timeout=CONVERSATION_TIMEOUT) as conv:
         await conv.send_message('We have captcha moment :)')
-        await conv.send_file('captcha.png')
+        await conv.send_file('./downloaded_files/captcha.png')
         response = await conv.get_response()
         if response:
             result = response.raw_text

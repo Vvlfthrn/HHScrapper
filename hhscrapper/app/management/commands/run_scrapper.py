@@ -1,4 +1,3 @@
-import json
 import os
 import time
 from datetime import datetime, timedelta
@@ -17,7 +16,7 @@ from seleniumbase import SB
 from seleniumbase.common.exceptions import NoSuchElementException
 
 from hhscrapper.app import telebot
-from hhscrapper.app.models import Vacancy, Skill
+from hhscrapper.app.models import Vacancy, Skill, SearchQuery, VacancyPromptDecision, LLMResult, DecisionState
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -35,8 +34,7 @@ NEXT_LIST_PAGE_TIMEOUT = 5
 WORKING_HOURS_PERIOD = 20 * 60
 HOUR_PERIOD = 60 * 60
 NETWORK_ERROR_PERIOD = 5 * 60
-
-SEARCH_STR = json.loads(os.environ['HH_QUERIES'])
+MAX_PAGE_NUMBER = 10
 LOGIN = os.environ['HH_LOGIN']
 PASSWORD = os.environ['HH_PASS']
 
@@ -45,7 +43,7 @@ NEXT_PAGE_SELECTOR = 'nav[data-qa="pager-block"] li:has(a[aria-current="true"]) 
 
 
 def solve_captha(sb:SB):
-    sb.save_screenshot('captcha.png', selector='img[data-qa="account-captcha-picture"]')
+    sb.save_screenshot('./downloaded_files/captcha.png', selector='img[data-qa="account-captcha-picture"]')
     captcha_text = asyncio.run(telebot.send_captcha())
     if captcha_text:
         sb.type('input[data-qa="account-captcha-input"]', text=captcha_text)
@@ -94,36 +92,56 @@ def get_element_text(sb: SB, selector:str | list[str], separator: str = ', ', on
             pass
     return result
 
-def parse(sb: SB, timestamp:datetime = None, vac_id :str = None):
-    v = Vacancy(
-        hh_id=int(vac_id),
-        url=sb.get_current_url(),
-            title= get_element_text(sb, [
-                'div[data-qa="vacancy-title"]',
-                'div[class="vacancy-title"] h1[data-qa="vacancy-title"] span'
-            ], separator=''),
-        salary=get_element_text(sb, [
-            'div[class^="compensation-row"]',
-            'div[data-qa="vacancy-salary"] span'
-        ]),
-        compensation=get_element_text(sb, 'p[data-qa="compensation-frequency-text"]'),
-        work_experience=get_element_text(sb, 'p[data-qa="work-experience-text"]'),
-        common_employment=get_element_text(sb, 'div[data-qa="common-employment-text"]'),
-        hiring_format=get_element_text(sb, 'div[data-qa="vacancy-hiring-formats"]'),
-        work_schedule=get_element_text(sb, 'p[data-qa="work-schedule-by-days-text"]'),
-        work_hours=get_element_text(sb, 'div[data-qa="working-hours-text'),
-        work_format=get_element_text(sb, 'p[data-qa="work-formats-text"]'),
-        description=get_element_text(
-            sb, 'div[class="vacancy-description"] div[data-qa="vacancy-description"]'),
-        notified=False,
-        load_dt=timestamp,
-    )
+def parse(sb: SB, timestamp:datetime = None, vac_id :str = None, search_query: SearchQuery = None, parse:bool = True):
+    if parse:
+        v = Vacancy(
+            hh_id=int(vac_id),
+            url=sb.get_current_url(),
+                title= get_element_text(sb, [
+                    'div[data-qa="vacancy-title"]',
+                    'div[class="vacancy-title"] h1[data-qa="vacancy-title"] span'
+                ], separator=''),
+            salary=get_element_text(sb, [
+                'div[class^="compensation-row"]',
+                'div[data-qa="vacancy-salary"] span'
+            ]),
+            compensation=get_element_text(sb, 'p[data-qa="compensation-frequency-text"]'),
+            work_experience=get_element_text(sb, 'p[data-qa="work-experience-text"]'),
+            common_employment=get_element_text(sb, 'div[data-qa="common-employment-text"]'),
+            hiring_format=get_element_text(sb, 'div[data-qa="vacancy-hiring-formats"]'),
+            work_schedule=get_element_text(sb, 'p[data-qa="work-schedule-by-days-text"]'),
+            work_hours=get_element_text(sb, 'div[data-qa="working-hours-text'),
+            work_format=get_element_text(sb, 'p[data-qa="work-formats-text"]'),
+            description=get_element_text(
+                sb, 'div[class="vacancy-description"] div[data-qa="vacancy-description"]'),
+            load_dt=timestamp,
+        )
+    else:
+        v = Vacancy.objects.get(hh_id=int(vac_id))
     with transaction.atomic():
-        v.save()
-        for x in sb.find_elements('ul[class^="vacancy-skill-list"] li[data-qa="skills-element"]'):
-            s, _ = Skill.objects.get_or_create(title=x.text.strip())
-            v.skills.add(s)
+        if parse:
+            v.save()
+            for x in sb.find_elements('ul[class^="vacancy-skill-list"] li[data-qa="skills-element"]'):
+                s, _ = Skill.objects.get_or_create(title=x.text.strip())
+                v.skills.add(s)
+        for link in search_query.search_links.select_releated('prompt'):
+            obj, created = VacancyPromptDecision.objects.get_or_create(vacancy=v, prompt=link.prompt)
+            if created:
+                if link.prompt.vacancy_with_stop_words(vacancy=v):
+                    obj.koef = 0.0
+                    obj.consensus = False
+                    obj.state = DecisionState.DONE
+                    obj.save(update_fields=['consensus', 'state', 'koef'])
+                    logger.info(f'Vacancy contains stopwords (prompt / vacancy / url): {obj.prompt} / {v} / {v.url}')
+                else:
+                    logger.info(f'Create new vacancy decision(prompt / vacancy / url): {obj.prompt} / {v} / {v.url}')
+                    for llm in link.llms.all():
+                        llm_result, _ = LLMResult.objects.get_or_create(llm=llm.llm, prompt=obj.prompt, vacancy=v)
+                        obj.llm_results.add(llm_result)
+                    obj.state = DecisionState.READY_TO_EXECUTE
+                    obj.save(update_fields=['state'])
     return v
+
 
 def do_work():
 
@@ -136,34 +154,41 @@ def do_work():
         ) as sb:
         try:
             timestamp = datetime.now()
-            url = SEARCH_STR[0]
-            sb.uc_open_with_reconnect(url)
+            search_query = SearchQuery.active_prompts().first()
+            if not search_query:
+                return
+            sb.uc_open_with_reconnect(search_query.query)
             sb.wait_for_ready_state_complete(timeout=PAGE_LOAD_TIMEOUT)
             try:
                 sb.load_cookies()
             except FileNotFoundError:
                  pass
 
-            url = SEARCH_STR[0]
-            sb.uc_open_with_reconnect(url)
+            sb.uc_open_with_reconnect(search_query.query)
             sb.wait_for_ready_state_complete(timeout=PAGE_LOAD_TIMEOUT)
 
             if sb.find_elements('a[data-qa="login"]'):
                 sb.open_url("https://hh.ru/account/login?role=applicant")
                 sb.wait_for_ready_state_complete(timeout=PAGE_LOAD_TIMEOUT)
                 login(sb)
-            for search_query in SEARCH_STR:
-                sb.open_url(search_query)
+            for search_query in SearchQuery.active_prompts().all():
+                sb.open_url(search_query.query)
                 sb.wait_for_ready_state_complete(timeout=PAGE_LOAD_TIMEOUT)
-                logger.info(f'Opened {search_query}')
+                logger.info(f'Opened {search_query.query}')
+                page_number = 0
                 while True:
+                    page_number += 1
+                    if page_number > MAX_PAGE_NUMBER:
+                        # infinite loop
+                        break
                     links = sb.find_elements(VACANCIES_LIST_SELECTOR)
                     vac_new_links = set()
                     for x in links:
                         href = x.get_attribute('href')
                         found = VAC_ID_FINDER.findall(href)
                         if found and found[0] and Vacancy.objects.filter(hh_id=int(found[0])).exists():
-                            pass
+                            parse(sb, timestamp=timestamp, vac_id=found[0], search_query=search_query,
+                                  parse=False)
                         else:
                             vac_new_links.add(href)
                     logger.info(f'New links {len(vac_new_links)}')
@@ -171,15 +196,15 @@ def do_work():
                         logger.info(f'Clicking {url}')
                         sb.click(VACANCIES_LIST_SELECTOR + f'[href="{url}"]')
                         sb.switch_to_window(1, timeout=SWITCH_WINDOW_TIMEOUT)
-                        # time.sleep(SWITCH_WINDOW_TIMEOUT)
                         if sb.get_current_url().startswith('https://hh.ru/account/captcha'):
                             solve_captha(sb)
                         sb.wait_for_ready_state_complete(timeout=PAGE_LOAD_TIMEOUT)
                         vac_id = VAC_ID_FINDER.findall(sb.get_current_url())
                         logger.info(f'Found {vac_id}')
-                        if vac_id and vac_id[0] and not Vacancy.objects.filter(hh_id=int(vac_id[0])).exists():
+                        if vac_id and vac_id[0]:
                             logger.info('Parsing page...')
-                            parse(sb, timestamp=timestamp, vac_id=vac_id[0])
+                            parse(sb, timestamp=timestamp, vac_id=vac_id[0], search_query=search_query,
+                                  parse=not Vacancy.objects.filter(hh_id=int(vac_id[0])).exists())
                             sb.scroll_to_bottom()
                             time.sleep(VAC_READ_TIMEOUT)
                         sb.driver.close()
