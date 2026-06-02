@@ -10,6 +10,7 @@ import asyncio
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils import timezone as tz
 
 from selenium.common import InvalidCookieDomainException
 from seleniumbase import SB
@@ -130,13 +131,13 @@ def parse(sb: SB, timestamp:datetime = None, vac_id :str = None, search_query: S
                 if link.prompt.vacancy_with_stop_words(vacancy=v):
                     obj.koef = 0.0
                     obj.consensus = False
-                    obj.state = DecisionState.DONE
+                    obj.state = DecisionState.STOP_WORD
                     obj.save(update_fields=['consensus', 'state', 'koef'])
-                    logger.info(f'Vacancy contains stopwords (prompt / vacancy / url): {obj.prompt} / {v} / {v.url}')
+                    logger.info(f'Vacancy contains stopwords (prompt / vacancy / url): {link.prompt} / {v} / {v.url}')
                 else:
-                    logger.info(f'Create new vacancy decision(prompt / vacancy / url): {obj.prompt} / {v} / {v.url}')
-                    for llm in link.llms.all():
-                        llm_result, _ = LLMResult.objects.get_or_create(llm=llm.llm, prompt=obj.prompt, vacancy=v)
+                    logger.info(f'Create new vacancy decision(prompt / vacancy / url): {link.prompt} / {v} / {v.url}')
+                    for llm in link.prompt.llms.all():
+                        llm_result, _ = LLMResult.objects.get_or_create(llm=llm.llm, prompt=link.prompt, vacancy=v)
                         obj.llm_results.add(llm_result)
                     obj.state = DecisionState.READY_TO_EXECUTE
                     obj.save(update_fields=['state'])
@@ -153,7 +154,7 @@ def do_work():
         maximize=True,
         ) as sb:
         try:
-            timestamp = datetime.now()
+            timestamp = tz.now()
             search_query = SearchQuery.active_prompts().first()
             if not search_query:
                 return

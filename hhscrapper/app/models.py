@@ -83,6 +83,8 @@ class Prompt(models.Model):
                                           'Available tags are {{TITLE}} '
                                           '{{WORK_EXP}} {{DESC}} {{SKILLS}}')
     stop_words = models.ManyToManyField(StopWord, related_name='prompts')
+    llms = models.ManyToManyField('ExecuteLLM', related_name="prompts")
+    koef = models.FloatField(blank=True, null=True)
 
     class Meta:
         verbose_name_plural = "Prompts"
@@ -115,7 +117,7 @@ class ExecuteLLM(models.Model):
 class SearchQueryPromptLink(models.Model):
     search_query = models.ForeignKey('SearchQuery', on_delete=models.CASCADE, related_name='search_links')
     prompt = models.ForeignKey(Prompt, on_delete=models.CASCADE, related_name='prompt_links')
-    llms = models.ManyToManyField(ExecuteLLM, related_name="+")
+
 
     class Meta:
         verbose_name_plural = "Search Query Prompt Links"
@@ -150,6 +152,7 @@ class DecisionState(models.IntegerChoices):
     ALL_TASKS_EXECUTED = 3, 'ALL_TASKS_EXECUTED'
     DONE = 4, 'Done'
     CONSENSUS_CHECKED = 5, 'Consensus Checked'
+    STOP_WORD = 6, 'Stop Word'
 
 
 class VacancyPromptDecision(models.Model):

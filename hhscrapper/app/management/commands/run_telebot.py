@@ -7,7 +7,7 @@ from typing import Iterable
 
 from telethon import TelegramClient
 from django.core.management import BaseCommand
-from django.db import transaction
+from django.db import transaction, models
 
 from hhscrapper.app.models import VacancyPromptDecision, DecisionState
 from hhscrapper.app.telebot import API_ID, API_HASH, BOT_TOKEN, USER_ID, SLEEP_TIME
@@ -20,7 +20,7 @@ async def send_messages(vacancy_decisions:Iterable[VacancyPromptDecision]):
     bot = TelegramClient('./hhscrapper/sender_bot.db', API_ID, API_HASH)
     client = await bot.start(bot_token=BOT_TOKEN)
     vacancy_decisions = [x async for x in VacancyPromptDecision.objects.filter(
-        id__in=vacancy_decisions, koef__gte=0.4).select_related('vacancy')]
+        id__in=vacancy_decisions, koef__gte=models.F('prompt__koef')).select_related('vacancy', 'prompt')]
     offset = 8
     step = 0
     while vacs:=vacancy_decisions[offset * step:offset * (step + 1)]:
@@ -28,6 +28,7 @@ async def send_messages(vacancy_decisions:Iterable[VacancyPromptDecision]):
         for vd in vacs:
             message += f'{vd.vacancy.title} ({vd.koef})\n'
             message += f'https://hh.ru/vacancy/{vd.vacancy.hh_id}\n'
+            message += f'Промпт: {vd.prompt.title}\n'
             message += '===========\n\n'
         logger.info(f'Sending message to {USER_ID} vacs: {[x.id for x in vacs]}')
         await client.send_message(USER_ID, message=message)
