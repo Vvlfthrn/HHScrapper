@@ -43,6 +43,50 @@ def check_consensus():
         logger.info(f'Consensus (vacancy/prompt/koef):{vpd.vacancy.title}/{vpd.prompt.title}/{vpd.koef}')
 
 
+def fill_result_from_db(r: LLMResult, already_completed: LLMResult):
+    r.corresponds = already_completed.corresponds
+    r.comment = already_completed.comment
+    r.extra = already_completed.extra
+    r.execution_done = True
+    return r
+
+
+def fill_from_llm(r: LLMResult, chat_model: ChatOllama):
+    messages = [
+        SystemMessage(
+            content=r.prompt.sys_template
+        ),
+        HumanMessage(
+            content=Template(r.prompt.human_template).render(
+                Context(
+                    {
+                        'TITLE': r.vacancy.title,
+                        'WORK_EXP': r.vacancy.work_experience,
+                        'DESC': r.vacancy.description,
+                        'SKILLS': r.vacancy.skills.all(),
+                    }
+                )
+            ))
+    ]
+
+    response = chat_model.invoke(messages)
+
+    logger.debug(f'Model response:\n{response.content}')
+    try:
+        d = json.loads(remove_think_tag(response.content))
+        if 'corresponds' in d:
+            r.corresponds = d.get('corresponds')
+            r.comment = d.get('comment', None)
+            r.extra = d.get('extra', None)
+        else:
+            r.extra = response.content
+    except Exception as e:
+        r.comment = str(e)
+        r.extra = response.content
+    r.execution_done = True
+    return r
+
+
 def llm_do_work():
     for model in LLMEnum:
         query = LLMResult.objects.filter(llm=model.value, execution_done=False)
@@ -58,39 +102,14 @@ def llm_do_work():
             )
             for r in query.prefetch_related('vacancy__skills', 'prompt'):
                 counter += 1
-                logger.info(f'{model.label} {counter}/{total} {r.vacancy.url}')
-                messages = [
-                    SystemMessage(
-                        content=r.prompt.sys_template
-                        ),
-                    HumanMessage(
-                        content=Template(r.prompt.human_template).render(
-                            Context(
-                                {
-                                    'TITLE': r.vacancy.title,
-                                    'WORK_EXP': r.vacancy.work_experience,
-                                    'DESC': r.vacancy.description,
-                                    'SKILLS': r.vacancy.skills.all(),
-                                }
-                            )
-                        ))
-                ]
+                already_completed = LLMResult.objects.filter(task_hash=r.get_hash(), execution_done=True).first()
 
-                response = chat_model.invoke(messages)
-
-                logger.debug(f'Model response:\n{response.content}')
-                try:
-                    d = json.loads(remove_think_tag(response.content))
-                    if 'corresponds' in d:
-                        r.corresponds = d.get('corresponds')
-                        r.comment = d.get('comment', None)
-                        r.extra = d.get('extra', None)
-                    else:
-                        r.extra = response.content
-                except Exception as e:
-                    r.comment = str(e)
-                    r.extra = response.content
-                r.execution_done = True
+                if already_completed:
+                    logger.info(f'From DB {model.label} {counter}/{total} {r.vacancy.url}')
+                    fill_result_from_db(r, already_completed)
+                else:
+                    logger.info(f'From LLM {model.label} {counter}/{total} {r.vacancy.url}')
+                    fill_from_llm(r, chat_model)
                 with transaction.atomic():
                     r.save()
                     for decision in r.decisions.filter(state=DecisionState.READY_TO_EXECUTE):

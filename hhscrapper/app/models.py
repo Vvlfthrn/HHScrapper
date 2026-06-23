@@ -1,5 +1,8 @@
+import uuid
+
 from django.db import models
 from django.db.models import Value, F
+from django.db.models.fields import UUIDField
 from django.db.models.functions import Lower
 
 
@@ -19,6 +22,7 @@ class LLMResult(models.Model):
     prompt = models.ForeignKey('Prompt', on_delete=models.CASCADE, related_name='llm_results', null=True)
     vacancy = models.ForeignKey('Vacancy', on_delete=models.CASCADE, related_name='llm_results', null=True)
     execution_done = models.BooleanField(default=False)
+    task_hash = UUIDField('Task Hash', db_index=True, blank=True, null=True)
 
     class Meta:
         verbose_name_plural = "LLM Results"
@@ -26,6 +30,23 @@ class LLMResult(models.Model):
 
     def __str__(self):
         return f'{self.get_llm_display()}: {self.corresponds}'
+
+    def get_hash(self):
+        if not self.task_hash:
+            text = f"{self.llm}:{self.prompt_id}:{self.vacancy.description.replace(' ', '').lower()}"
+            return uuid.uuid3(uuid.NAMESPACE_DNS, text)
+        return self.task_hash
+
+    def update_hash(self, save=False):
+        self.task_hash = self.get_hash()
+        if save:
+            self.save(update_fields=['task_hash'])
+
+
+    def save(self, *args, **kwargs):
+        if not self.task_hash:
+            self.update_hash()
+        return super().save(*args, **kwargs)
 
 
 class Skill(models.Model):

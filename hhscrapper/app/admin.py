@@ -80,7 +80,7 @@ class ExecuteLLMAdmin(admin.ModelAdmin):
 
 @admin.register(LLMResult)
 class LLMResultAdmin(admin.ModelAdmin):
-    list_display = ('id', 'llm', 'prompt', 'vacancy')
+    list_display = ('id', 'llm', 'prompt', 'vacancy', 'task_hash')
     list_select_related = ('vacancy', 'prompt')
 
 
