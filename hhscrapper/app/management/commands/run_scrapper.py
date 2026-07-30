@@ -39,7 +39,7 @@ MAX_PAGE_NUMBER = 10
 LOGIN = os.environ['HH_LOGIN']
 PASSWORD = os.environ['HH_PASS']
 
-VACANCIES_LIST_SELECTOR='div:is([data-qa="vacancy-serp__vacancy"], [data-qa="vacancy-serp__vacancy vacancy-serp-item_clickme"]) a[data-qa="serp-item__title"]'
+VACANCIES_LIST_SELECTOR='article:is([data-qa="vacancy-serp__vacancy"], [data-qa="vacancy-serp__vacancy vacancy-serp-item_clickme"]) a[data-qa="serp-item__title"]'
 NEXT_PAGE_SELECTOR = 'nav[data-qa="pager-block"] li:has(a[aria-current="true"]) + li:has(a[aria-current="false"])'
 
 
