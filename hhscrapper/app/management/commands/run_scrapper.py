@@ -57,7 +57,7 @@ def login(sb:SB):
     sb.assert_text('Войти', 'button[data-qa="submit-button"] span', timeout=WAIT_TIMEOUT)
     sb.click('button[data-qa="submit-button"] span:contains("Войти")', delay=DELAY_TIMEOUT)
     sb.assert_element('div[data-qa="credential-type-switch"', timeout=WAIT_TIMEOUT)
-    sb.assert_element('input[data-qa="credential-type-PHONE checked"]', timeout=WAIT_TIMEOUT)
+    sb.assert_element('input[data-qa="credential-type-phone checked"]', timeout=WAIT_TIMEOUT)
     sb.assert_element('input[data-qa="magritte-phone-input-national-number-input"][inputmode="tel"]',
                       timeout=WAIT_TIMEOUT)
     sb.type('input[data-qa="magritte-phone-input-national-number-input"][inputmode="tel"]', text=LOGIN,
