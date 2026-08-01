@@ -88,7 +88,7 @@ def get_element_text(sb: SB, selector:str | list[str], separator: str = ', ', on
             if only_first:
                 result += sb.find_element(item).text
             else:
-                result += separator.join(x.text for x in sb.find_elements(item))
+                result += separator.join(set(x.text for x in sb.find_elements(item)))
         except NoSuchElementException:
             pass
     return result
@@ -98,10 +98,10 @@ def parse(sb: SB, timestamp:datetime = None, vac_id :str = None, search_query: S
         v = Vacancy(
             hh_id=int(vac_id),
             url=sb.get_current_url(),
-                title= get_element_text(sb, [
-                    'div[data-qa="vacancy-title"]',
-                    'div[class="vacancy-title"] h1[data-qa="vacancy-title"] span'
-                ], separator=''),
+            title= get_element_text(sb, [
+                'div[data-qa="vacancy-title"]',
+                'div[class="vacancy-title"] h1[data-qa="vacancy-title"] span'
+            ], separator=' | '),
             salary=get_element_text(sb, [
                 'div[class^="compensation-row"]',
                 'div[data-qa="vacancy-salary"] span'
